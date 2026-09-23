@@ -1,4 +1,4 @@
-import os
+    import os
 from datetime import datetime
 import streamlit as st
 import psycopg2
@@ -8,7 +8,6 @@ from reportlab.lib.utils import ImageReader
 
 # --- CONFIGURACIÓN DE LA CONEXIÓN A SUPABASE (POSTGRESQL) ---
 def init_connection():
-    # Lee las credenciales desde st.secrets de Streamlit Cloud
     return psycopg2.connect(
         host=st.secrets["supabase"]["host"],
         database=st.secrets["supabase"]["database"],
@@ -268,7 +267,6 @@ if direccion_input:
                         presion = st.text_input(f"4. Presión de trabajo (PSI/PCI) ({ubicacion})", key=f"p_{eq_id}")
                         obs = st.text_area(f"5. Observaciones particulares ({ubicacion})", key=f"obs_{eq_id}")
                         
-                        # Manejo temporal de imagen subida
                         uploaded_file = st.file_uploader(f"Adjuntar foto ({ubicacion})", type=["jpg", "png", "jpeg"], key=f"img_{eq_id}")
                         
                         img_path = ""
@@ -290,10 +288,16 @@ if direccion_input:
                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                             ''', (eq_id, fecha_actual, filtros, drenaje, condensadora, presion, obs, img_path))
                         conn.commit()
-                        st.success("¡Mantenimiento registrado con éxito!")
                         
-                        # Generar y ofrecer descarga del PDF
-                        pdf_file = generar_informe_pdf(locacion_id, cliente, sitio, direccion_input, fecha_actual)
+                        # Guardar el PDF generado en el session_state en lugar de renderizar el botón aquí adentro
+                        st.session_state["pdf_generado"] = generar_informe_pdf(locacion_id, cliente, sitio, direccion_input, fecha_actual)
+                        st.session_state["mantenimiento_guardado"] = True
+
+                # FUERA del bloque with st.form, comprobamos si ya se generó el PDF para mostrar el botón de descarga con seguridad
+                if st.session_state.get("mantenimiento_guardado"):
+                    st.success("¡Mantenimiento registrado con éxito!")
+                    pdf_file = st.session_state.get("pdf_generado")
+                    if pdf_file and os.path.exists(pdf_file):
                         with open(pdf_file, "rb") as pdf_f:
                             st.download_button(
                                 label="📥 Descargar Informe Técnico en PDF",
