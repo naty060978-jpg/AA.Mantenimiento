@@ -80,9 +80,9 @@ supabase = init_supabase()
 # ==========================================
 with st.sidebar:
     st.markdown("### 📍 Datos de Ubicación y Servicio")
-    st.markdown("<p style='font-size: 0.9rem; color: #94a3b8;'>Ingrese los datos obligatorios para habilitar el sistema.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 0.9rem; color: #94a3b8;'>Ingrese los datos generales del inmueble para habilitar el sistema.</p>", unsafe_allow_html=True)
     
-    direccion = st.text_input("Dirección del sitio / Inmueble", placeholder="Ej: Av. Constitución 4300")
+    direccion = st.text_input("Dirección General / Inmueble", placeholder="Ej: Av. Luro 3400")
     cliente = st.text_input("Cliente / Razón Social", placeholder="Nombre o empresa")
     tecnico = st.text_input("Técnico Responsable", placeholder="Operador a cargo")
     
@@ -107,7 +107,7 @@ st.markdown("""
 if not direccion or not cliente:
     st.markdown("""
         <div style="background-color: #eff6ff; border-left: 5px solid #3b82f6; padding: 1rem; border-radius: 4px; color: #1e40af; margin-bottom: 1.5rem;">
-            👉 <b>Atención Operativa:</b> Complete la <b>Dirección del Inmueble</b> y el <b>Cliente</b> en la barra lateral para desbloquear los formularios de carga.
+            👉 <b>Atención Operativa:</b> Complete la <b>Dirección General</b> y el <b>Cliente</b> en la barra lateral para desbloquear los formularios de carga.
         </div>
     """, unsafe_allow_html=True)
     
@@ -116,7 +116,7 @@ if not direccion or not cliente:
         st.markdown("""
             <div class="custom-card">
                 <h4>📋 Módulo de Equipos</h4>
-                <p style="color: #64748b; font-size: 0.9rem;">Registro detallado por características: tipo libre, marca, modelo, frigorías, refrigerante y kW.</p>
+                <p style="color: #64748b; font-size: 0.9rem;">Registro detallado con ubicación específica, marca, modelo, frigorías y refrigerante.</p>
             </div>
         """, unsafe_allow_html=True)
     with col2:
@@ -135,7 +135,7 @@ if not direccion or not cliente:
         """, unsafe_allow_html=True)
 
 else:
-    st.success(f"📍 **Cliente:** {cliente} | 🏠 **Ubicación:** {direccion} | 👨‍🔧 **Técnico:** {tecnico if tecnico else 'No asignado'}")
+    st.success(f"📍 **Cliente:** {cliente} | 🏠 **Dirección General:** {direccion} | 👨‍🔧 **Técnico:** {tecnico if tecnico else 'No asignado'}")
     
     if modo_vista == "Gestión Operativa (Equipos y Mantenimiento)":
         
@@ -144,17 +144,18 @@ else:
         # --- OBJETO 1: EQUIPOS ---
         with tab_equipo:
             st.markdown("### 🏢 Ficha Técnica del Equipo de Climatización")
-            st.markdown("<p style='color: #64748b;'>Registre los parámetros físicos y técnicos del equipo instalado.</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color: #64748b;'>Registre los parámetros físicos y la ubicación específica del equipo dentro del inmueble.</p>", unsafe_allow_html=True)
             
             with st.form("form_registro_equipo"):
                 col_e1, col_e2 = st.columns(2)
                 
                 with col_e1:
-                    tipo_equipo = st.text_input("Tipo de Equipo", placeholder="Ej: Split Inverter, Cassette 4 vías, Conducto...")
+                    ubicacion_equipo = st.text_input("Ubicación Específica del Equipo", placeholder="Ej: Oficina 2° Piso, Sala de Reuniones, Tesoro...")
+                    tipo_equipo = st.text_input("Tipo de Equipo", placeholder="Ej: Split Inverter, Cassette, Conducto...")
                     marca = st.text_input("Marca", placeholder="Ej: Carrier, York, Surrey, LG...")
-                    modelo = st.text_input("Modelo del Equipo", placeholder="Ej: 42QQV12...")
                     
                 with col_e2:
+                    modelo = st.text_input("Modelo del Equipo", placeholder="Ej: 42QQV12...")
                     frigorias = st.text_input("Frigorías", placeholder="Ej: 3000, 4500, 6000...")
                     refrigerante = st.selectbox("Tipo de Refrigerante", ["R410A", "R32", "R22", "R134a", "R407C", "Otro"])
                     potencia_kw = st.text_input("Potencia en kW", placeholder="Ej: 3.5 kW")
@@ -167,7 +168,8 @@ else:
                             if supabase:
                                 data = {
                                     "cliente": cliente,
-                                    "direccion": direccion,
+                                    "direccion_general": direccion,
+                                    "ubicacion_equipo": ubicacion_equipo,
                                     "tecnico": tecnico,
                                     "tipo_equipo": tipo_equipo,
                                     "marca": marca,
@@ -178,9 +180,9 @@ else:
                                     "fecha": str(datetime.now())
                                 }
                                 response = supabase.table("equipos_hvac").insert(data).execute()
-                                st.success(f"✅ ¡Equipo '{tipo_equipo}' guardado exitosamente en Supabase!")
+                                st.success(f"✅ ¡Equipo en '{ubicacion_equipo}' guardado exitosamente en Supabase!")
                             else:
-                                st.success(f"✅ ¡Equipo '{tipo_equipo}' registrado correctamente (Modo local sin Supabase configurado)!")
+                                st.success(f"✅ ¡Equipo registrado correctamente (Modo local sin Supabase)!")
                         except Exception as e:
                             st.error(f"Error al guardar en la base de datos: {e}")
                     else:
@@ -199,7 +201,7 @@ else:
                     drenajes_limpios = st.checkbox("Drenajes Limpios / Libres de obstrucción")
                     
                 with col_m2:
-                    limpieza_evaporadora = st.checkbox("Limpieza de Evaporadora (Puede no corresponder)")
+                    limpieza_evaporadora = st.checkbox("Limpieza de Evaporadora")
                     
                 observaciones = st.text_area(
                     "Observaciones Técnicas y Trabajos Adicionales", 
@@ -213,7 +215,7 @@ else:
                         if supabase:
                             data_maint = {
                                 "cliente": cliente,
-                                "direccion": direccion,
+                                "direccion_general": direccion,
                                 "tecnico": tecnico,
                                 "limpieza_filtros": limpieza_filtros,
                                 "drenajes_limpios": drenajes_limpios,
@@ -256,7 +258,7 @@ else:
             elements.append(Paragraph("ANN Multiservicios - Informe Técnico HVAC", styles['Heading1']))
             elements.append(Spacer(1, 12))
             elements.append(Paragraph(f"<b>Cliente:</b> {cliente}", styles['Normal']))
-            elements.append(Paragraph(f"<b>Ubicación:</b> {direccion}", styles['Normal']))
+            elements.append(Paragraph(f"<b>Dirección General:</b> {direccion}", styles['Normal']))
             elements.append(Paragraph(f"<b>Técnico Responsable:</b> {tecnico}", styles['Normal']))
             elements.append(Spacer(1, 12))
             
