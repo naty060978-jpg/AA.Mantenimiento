@@ -225,7 +225,7 @@ else:
                     drenajes_limpios = st.checkbox("Drenajes Limpios / Libres de obstrucción")
                     
                 with col_m2:
-                    limpieza_evaporadora = st.checkbox("Limpieza de Evaporadora")
+                    limpieza_evaporadora = st.checkbox("Limpieza de Condensadora")
                     
                 observaciones = st.text_area(
                     "Observaciones Técnicas y Trabajos Adicionales", 
@@ -243,7 +243,7 @@ else:
                                 "tecnico": tecnico,
                                 "limpieza_filtros": limpieza_filtros,
                                 "drenajes_limpios": drenajes_limpios,
-                                "limpieza_evaporadora": limpieza_evaporadora,
+                                "limpieza_evaporadora": limpieza_condensadora,
                                 "observaciones": observaciones,
                                 "fecha": str(datetime.now())
                             }
