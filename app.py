@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_option_menu import option_menu
 import pandas as pd
 from datetime import datetime
 from supabase import create_client, Client
@@ -64,7 +63,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. CONexión A SUPABASE (PERSISTENCIA)
+# 3. CONEXIÓN A SUPABASE (PERSISTENCIA)
 # ==========================================
 @st.cache_resource
 def init_supabase():
@@ -140,7 +139,6 @@ else:
     
     if modo_vista == "Gestión Operativa (Equipos y Mantenimiento)":
         
-        # Pestañas separadas para los dos objetos de trabajo
         tab_equipo, tab_mantenimiento = st.tabs(["1️⃣ Características del Equipo", "2️⃣ Registro de Mantenimiento"])
         
         # --- OBJETO 1: EQUIPOS ---
