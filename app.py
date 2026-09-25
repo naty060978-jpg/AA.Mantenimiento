@@ -76,7 +76,13 @@ def init_supabase():
 supabase = init_supabase()
 
 # ==========================================
-# 4. BARRA LATERAL (CONTEXTO Y DATOS)
+# 4. INICIALIZAR ESTADO DE SESIÓN (PARA MULTI-EQUIPOS)
+# ==========================================
+if "equipos_sesion" not in st.session_state:
+    st.session_state.equipos_sesion = []
+
+# ==========================================
+# 5. BARRA LATERAL (CONTEXTO Y DATOS)
 # ==========================================
 with st.sidebar:
     st.markdown("### 📍 Datos de Ubicación y Servicio")
@@ -90,11 +96,16 @@ with st.sidebar:
     st.markdown("### 🛠️ Módulos del Sistema")
     modo_vista = st.selectbox(
         "Seleccionar Vista", 
-        ["Gestión Operativa (Equipos y Mantenimiento)", "Historial / Base de Datos Supabase", "Generación de Reportes PDF"]
+        ["Gestión Operativa (Carga Múltiple de Equipos)", "Historial / Base de Datos Supabase", "Generación de Reportes PDF"]
     )
+    
+    # Botón para limpiar sesión si cambian de cliente/dirección
+    if st.button("🔄 Reiniciar sesión de equipos"):
+        st.session_state.equipos_sesion = []
+        st.rerun()
 
 # ==========================================
-# 5. CUERPO PRINCIPAL DE LA APLICACIÓN
+# 6. CUERPO PRINCIPAL DE LA APLICACIÓN
 # ==========================================
 st.markdown("""
     <div class="hero-container">
@@ -107,7 +118,7 @@ st.markdown("""
 if not direccion or not cliente:
     st.markdown("""
         <div style="background-color: #eff6ff; border-left: 5px solid #3b82f6; padding: 1rem; border-radius: 4px; color: #1e40af; margin-bottom: 1.5rem;">
-            👉 <b>Atención Operativa:</b> Complete la <b>Dirección General</b> y el <b>Cliente</b> en la barra lateral para desbloquear los formularios de carga.
+            👉 <b>Atención Operativa:</b> Complete la <b>Dirección General</b> y el <b>Cliente</b> en la barra lateral para desbloquear los formularios de carga múltiple.
         </div>
     """, unsafe_allow_html=True)
     
@@ -115,8 +126,8 @@ if not direccion or not cliente:
     with col1:
         st.markdown("""
             <div class="custom-card">
-                <h4>📋 Módulo de Equipos</h4>
-                <p style="color: #64748b; font-size: 0.9rem;">Registro detallado con ubicación específica, marca, modelo, frigorías y refrigerante.</p>
+                <h4>📋 Carga Múltiple (20+ equipos)</h4>
+                <p style="color: #64748b; font-size: 0.9rem;">Agregue todos los equipos que necesites uno tras otro para la misma dirección sin perder el hilo.</p>
             </div>
         """, unsafe_allow_html=True)
     with col2:
@@ -135,22 +146,22 @@ if not direccion or not cliente:
         """, unsafe_allow_html=True)
 
 else:
-    st.success(f"📍 **Cliente:** {cliente} | 🏠 **Dirección General:** {direccion} | 👨‍🔧 **Técnico:** {tecnico if tecnico else 'No asignado'}")
+    st.success(f"📍 **Cliente:** {cliente} | 🏠 **Dirección General:** {direccion} | 👨‍🔧 **Técnico:** {tecnico if tecnico else 'No asignado'} | ❄️ **Equipos en esta sesión:** {len(st.session_state.equipos_sesion)}")
     
-    if modo_vista == "Gestión Operativa (Equipos y Mantenimiento)":
+    if modo_vista == "Gestión Operativa (Carga Múltiple de Equipos)":
         
-        tab_equipo, tab_mantenimiento = st.tabs(["1️⃣ Características del Equipo", "2️⃣ Registro de Mantenimiento"])
+        tab_equipo, tab_mantenimiento = st.tabs(["1️⃣ Carga de Equipos (Múltiples)", "2️⃣ Registro de Mantenimiento"])
         
-        # --- OBJETO 1: EQUIPOS ---
+        # --- OBJETO 1: EQUIPOS CON CARGA ACUMULATIVA ---
         with tab_equipo:
-            st.markdown("### 🏢 Ficha Técnica del Equipo de Climatización")
-            st.markdown("<p style='color: #64748b;'>Registre los parámetros físicos y la ubicación específica del equipo dentro del inmueble.</p>", unsafe_allow_html=True)
+            st.markdown("### 🏢 Registro de Equipos de Climatización (Uno por uno)")
+            st.markdown("<p style='color: #64748b;'>Complete los datos de un equipo y presione 'Agregar a la lista'. Puede repetir esto las veces que necesite (para 20 equipos o más).</p>", unsafe_allow_html=True)
             
-            with st.form("form_registro_equipo"):
+            with st.form("form_registro_equipo", clear_on_submit=True):
                 col_e1, col_e2 = st.columns(2)
                 
                 with col_e1:
-                    ubicacion_equipo = st.text_input("Ubicación Específica del Equipo", placeholder="Ej: Oficina 2° Piso, Sala de Reuniones, Tesoro...")
+                    ubicacion_equipo = st.text_input("Ubicación Específica del Equipo", placeholder="Ej: Oficina 2° Piso, Sala de Reuniones, Planta Baja...")
                     tipo_equipo = st.text_input("Tipo de Equipo", placeholder="Ej: Split Inverter, Cassette, Conducto...")
                     marca = st.text_input("Marca", placeholder="Ej: Carrier, York, Surrey, LG...")
                     
@@ -160,33 +171,46 @@ else:
                     refrigerante = st.selectbox("Tipo de Refrigerante", ["R410A", "R32", "R22", "R134a", "R407C", "Otro"])
                     potencia_kw = st.text_input("Potencia en kW", placeholder="Ej: 3.5 kW")
                     
-                btn_guardar_equipo = st.form_submit_button("Guardar Características del Equipo")
+                btn_agregar_otro = st.form_submit_button("➕ Agregar este equipo a la lista")
                 
-                if btn_guardar_equipo:
-                    if tipo_equipo and marca:
-                        try:
-                            if supabase:
-                                data = {
-                                    "cliente": cliente,
-                                    "direccion_general": direccion,
-                                    "ubicacion_equipo": ubicacion_equipo,
-                                    "tecnico": tecnico,
-                                    "tipo_equipo": tipo_equipo,
-                                    "marca": marca,
-                                    "modelo": modelo,
-                                    "frigorias": frigorias,
-                                    "refrigerante": refrigerante,
-                                    "potencia_kw": potencia_kw,
-                                    "fecha": str(datetime.now())
-                                }
-                                response = supabase.table("equipos_hvac").insert(data).execute()
-                                st.success(f"✅ ¡Equipo en '{ubicacion_equipo}' guardado exitosamente en Supabase!")
-                            else:
-                                st.success(f"✅ ¡Equipo registrado correctamente (Modo local sin Supabase)!")
-                        except Exception as e:
-                            st.error(f"Error al guardar en la base de datos: {e}")
+                if btn_agregar_otro:
+                    if tipo_equipo and marca and ubicacion_equipo:
+                        nuevo_item = {
+                            "cliente": cliente,
+                            "direccion_general": direccion,
+                            "ubicacion_equipo": ubicacion_equipo,
+                            "tecnico": tecnico,
+                            "tipo_equipo": tipo_equipo,
+                            "marca": marca,
+                            "modelo": modelo,
+                            "frigorias": frigorias,
+                            "refrigerante": refrigerante,
+                            "potencia_kw": potencia_kw,
+                            "fecha": str(datetime.now())
+                        }
+                        st.session_state.equipos_sesion.append(nuevo_item)
+                        st.success(f"✅ Equipo agregado correctamente. Total en lista: {len(st.session_state.equipos_sesion)}. ¡Ya puede cargar el siguiente!")
                     else:
-                        st.error("⚠️ Por favor complete al menos el 'Tipo de Equipo' y la 'Marca'.")
+                        st.error("⚠️ Por favor complete al menos la 'Ubicación Específica', 'Tipo de Equipo' y la 'Marca'.")
+
+            # Mostrar los equipos cargados hasta el momento en esta sesión
+            if st.session_state.equipos_sesion:
+                st.markdown("---")
+                st.markdown("#### 📋 Equipos cargados para este servicio (Pendientes de guardar en Base de Datos):")
+                df_temp = pd.DataFrame(st.session_state.equipos_sesion)
+                st.dataframe(df_temp[["ubicacion_equipo", "tipo_equipo", "marca", "frigorias", "refrigerante"]], use_container_width=True)
+                
+                if st.button("🚀 Guardar TODOS los equipos de la lista en Supabase"):
+                    try:
+                        if supabase:
+                            for eq in st.session_state.equipos_sesion:
+                                supabase.table("equipos_hvac").insert(eq).execute()
+                            st.success(f"🎉 ¡{len(st.session_state.equipos_sesion)} equipos guardados exitosamente en Supabase!")
+                            st.session_state.equipos_sesion = [] # Limpiar tras guardar con éxito
+                        else:
+                            st.success("🎉 ¡Equipos registrados correctamente (Modo local sin Supabase)!")
+                    except Exception as e:
+                        st.error(f"Error al guardar en la base de datos: {e}")
 
         # --- OBJETO 2: MANTENIMIENTO ---
         with tab_mantenimiento:
