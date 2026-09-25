@@ -3,9 +3,8 @@ import pandas as pd
 from datetime import datetime
 from supabase import create_client, Client
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 import io
 import base64
 
@@ -77,30 +76,39 @@ def init_supabase():
 supabase = init_supabase()
 
 # ==========================================
-# 4. BARRA LATERAL (CONTEXTO Y DATOS)
+# 4. INICIALIZAR ESTADO DE SESIÓN
+# ==========================================
+if "equipos_parque" not in st.session_state:
+    st.session_state.equipos_parque = []
+
+if "mantenimientos_sesion" not in st.session_state:
+    st.session_state.mantenimientos_sesion = []
+
+# ==========================================
+# 5. BARRA LATERAL (CONTEXTO Y DATOS)
 # ==========================================
 with st.sidebar:
     st.markdown("### 📍 Datos de Ubicación y Servicio")
-    st.markdown("<p style='font-size: 0.9rem; color: #94a3b8;'>Ingrese la dirección para cargar o recuperar los equipos del inmueble.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 0.9rem; color: #94a3b8;'>Ingrese la dirección y cliente para operar.</p>", unsafe_allow_html=True)
     
-    direccion = st.text_input("Dirección General / Inmueble", placeholder="Ej: Av. Luro 3400")
-    cliente = st.text_input("Cliente / Razón Social", placeholder="Nombre o empresa")
-    tecnico = st.text_input("Técnico Responsable", placeholder="Operador a cargo")
-    
+    direccion = st.text_input("Dirección General / Inmueble", placeholder="Ej: Haras del Mar").strip()
+    cliente = st.text_input("Cliente / Razón Social", placeholder="Ej: Natalia").strip()
+    tecnico = st.text_input("Técnico Responsable", placeholder="Ej: Nolan").strip()
+
     st.markdown("---")
     st.markdown("### 🛠️ Módulos del Sistema")
     modo_vista = st.selectbox(
         "Seleccionar Vista", 
         [
-            "1. Registrar Nuevos Equipos (Alta)", 
-            "2. Ejecutar Mantenimiento Periódico", 
-            "3. Historial y Base de Datos", 
-            "4. Generar Reporte PDF del Servicio"
+            "1. Cargar Parque de Equipos", 
+            "2. Registrar Mantenimiento", 
+            "3. Historial / Base de Datos", 
+            "4. Generar Reporte PDF"
         ]
     )
 
 # ==========================================
-# 5. CUERPO PRINCIPAL DE LA APLICACIÓN
+# 6. CUERPO PRINCIPAL DE LA APLICACIÓN
 # ==========================================
 st.markdown("""
     <div class="hero-container">
@@ -112,7 +120,7 @@ st.markdown("""
 if not direccion or not cliente:
     st.markdown("""
         <div style="background-color: #eff6ff; border-left: 5px solid #3b82f6; padding: 1rem; border-radius: 4px; color: #1e40af; margin-bottom: 1.5rem;">
-            👉 <b>Atención Operativa:</b> Complete la <b>Dirección General</b> y el <b>Cliente</b> en la barra lateral para operar sobre los equipos del inmueble.
+            👉 <b>Atención Operativa:</b> Complete la <b>Dirección General</b> y el <b>Cliente</b> en la barra lateral para comenzar.
         </div>
     """, unsafe_allow_html=True)
     
@@ -120,115 +128,98 @@ if not direccion or not cliente:
     with col1:
         st.markdown("""
             <div class="custom-card">
-                <h4>🏢 Parque de Equipos Fijos</h4>
-                <p style="color: #64748b; font-size: 0.9rem;">Registre los equipos una sola vez; quedan guardados permanentemente para los futuros mantenimientos mensuales.</p>
+                <h4>🏢 Parque de Equipos</h4>
+                <p style="color: #64748b; font-size: 0.9rem;">Cargue múltiples equipos de forma continua para el inmueble.</p>
             </div>
         """, unsafe_allow_html=True)
     with col2:
         st.markdown("""
             <div class="custom-card">
-                <h4>🔧 Mantenimiento Periódico</h4>
-                <p style="color: #64748b; font-size: 0.9rem;">Ejecute el control mensual sobre los equipos ya instalados adjuntando observaciones e imágenes.</p>
+                <h4>🔧 Control de Mantenimiento</h4>
+                <p style="color: #64748b; font-size: 0.9rem;">Aplique el checklist y adjunte imágenes por cada equipo.</p>
             </div>
         """, unsafe_allow_html=True)
     with col3:
         st.markdown("""
             <div class="custom-card">
-                <h4>📄 Reportes PDF del Mes</h4>
-                <p style="color: #64748b; font-size: 0.9rem;">Exporte un informe técnico completo con las tareas del período actual.</p>
+                <h4>📄 Reporte PDF Integral</h4>
+                <p style="color: #64748b; font-size: 0.9rem;">Exporte un informe técnico completo al finalizar.</p>
             </div>
         """, unsafe_allow_html=True)
 
 else:
-    st.success(f"📍 **Cliente:** {cliente} | 🏠 **Dirección:** {direccion} | 👨‍🔧 **Técnico:** {tecnico if tecnico else 'No asignado'}")
+    st.success(f"📍 **Cliente:** {cliente} | 🏠 **Dirección:** {direccion} | 👨‍🔧 **Técnico:** {tecnico if tecnico else 'No asignado'} | ❄️ **Equipos en memoria:** {len(st.session_state.equipos_parque)}")
     
     # ----------------------------------------------------
-    # VISTA 1: REGISTRAR NUEVOS EQUIPOS (ALTA ÚNICA)
+    # VISTA 1: CARGAR PARQUE DE EQUIPOS
     # ----------------------------------------------------
-    if modo_vista == "1. Registrar Nuevos Equipos (Alta)":
-        st.markdown("### 🏢 Alta de Equipos Fijos del Inmueble")
-        st.markdown("<p style='color: #64748b;'>Utilice este formulario para registrar por única vez los equipos del edificio (puede cargar múltiples equipos, hasta 20 o más). No necesitará volver a cargarlos el próximo mes.</p>", unsafe_allow_html=True)
+    if modo_vista == "1. Cargar Parque de Equipos":
+        st.markdown("### 🏢 Alta de Equipos del Inmueble")
+        st.markdown("<p style='color: #64748b;'>Agregue los equipos uno por uno (puede cargar 20 o más). Quedarán guardados en la sesión para realizarles el mantenimiento inmediatamente.</p>", unsafe_allow_html=True)
         
         with st.form("form_alta_equipo", clear_on_submit=True):
             col_e1, col_e2 = st.columns(2)
             with col_e1:
-                ubicacion_equipo = st.text_input("Ubicación Específica", placeholder="Ej: Oficina 1, Sala de Reuniones, Pasillo Planta Baja...")
-                tipo_equipo = st.text_input("Tipo de Equipo", placeholder="Ej: Split Inverter, Cassette, Conducto...")
-                marca = st.text_input("Marca", placeholder="Ej: Carrier, York, Surrey...")
+                ubicacion_equipo = st.text_input("Ubicación Específica", placeholder="Ej: Oficina 1, Living, Pasillo...")
+                tipo_equipo = st.text_input("Tipo de Equipo", placeholder="Ej: Split Inverter, Cassette...")
+                marca = st.text_input("Marca", placeholder="Ej: Carrier, Surrey...")
             with col_e2:
                 modelo = st.text_input("Modelo", placeholder="Ej: 42QQV12...")
-                frigorias = st.text_input("Frigorías", placeholder="Ej: 3000, 4500, 6000...")
+                frigorias = st.text_input("Frigorías", placeholder="Ej: 3000, 4500...")
                 refrigerante = st.selectbox("Refrigerante", ["R410A", "R32", "R22", "R134a", "R407C", "Otro"])
                 potencia_kw = st.text_input("Potencia (kW)", placeholder="Ej: 3.5 kW")
                 
-            btn_guardar_equipo = st.form_submit_button("💾 Guardar Equipo en la Base de Datos")
+            btn_agregar_equipo = st.form_submit_button("➕ Agregar equipo a la lista")
             
-            if btn_guardar_equipo:
+            if btn_agregar_equipo:
                 if tipo_equipo and marca and ubicacion_equipo:
-                    try:
-                        if supabase:
-                            data_equipo = {
-                                "cliente": cliente,
-                                "direccion_general": direccion,
-                                "ubicacion_equipo": ubicacion_equipo,
-                                "tipo_equipo": tipo_equipo,
-                                "marca": marca,
-                                "modelo": modelo,
-                                "frigorias": frigorias,
-                                "refrigerante": refrigerante,
-                                "potencia_kw": potencia_kw,
-                                "fecha_registro": str(datetime.now())
-                            }
-                            supabase.table("equipos_hvac").insert(data_equipo).execute()
-                            st.success(f"✅ ¡Equipo '{ubicacion_equipo}' guardado exitosamente en Supabase!")
-                        else:
-                            st.success("✅ ¡Equipo registrado correctamente (Modo local)!")
-                    except Exception as e:
-                        st.error(f"Error al guardar en Supabase: {e}")
+                    nuevo_equipo = {
+                        "cliente": cliente,
+                        "direccion_general": direccion,
+                        "ubicacion_equipo": ubicacion_equipo,
+                        "tipo_equipo": tipo_equipo,
+                        "marca": marca,
+                        "modelo": modelo,
+                        "frigorias": frigorias,
+                        "refrigerante": refrigerante,
+                        "potencia_kw": potencia_kw,
+                        "fecha_registro": str(datetime.now())
+                    }
+                    st.session_state.equipos_parque.append(nuevo_equipo)
+                    
+                    # Guardar también en Supabase si está disponible
+                    if supabase:
+                        try:
+                            supabase.table("equipos_hvac").insert(nuevo_equipo).execute()
+                        except Exception as e:
+                            pass # Evita interrumpir si hay error de red, manteniendo la memoria local
+                            
+                    st.success(f"✅ Equipo '{ubicacion_equipo}' agregado correctamente. Total: {len(st.session_state.equipos_parque)}")
                 else:
                     st.error("⚠️ Complete al menos la 'Ubicación Específica', 'Tipo de Equipo' y la 'Marca'.")
                     
-        # Mostrar equipos ya registrados en esta dirección
-        st.markdown("---")
-        st.markdown("#### 📋 Equipos Fijos Registrados en esta Dirección:")
-        if supabase:
-            try:
-                res = supabase.table("equipos_hvac").select("*").eq("direccion_general", direccion).execute()
-                if res.data:
-                    df_eq = pd.DataFrame(res.data)
-                    st.dataframe(df_eq[["ubicacion_equipo", "tipo_equipo", "marca", "frigorias", "refrigerante"]], use_container_width=True)
-                else:
-                    st.info("No hay equipos registrados todavía para esta dirección.")
-            except Exception as e:
-                st.warning(f"No se pudieron consultar los equipos: {e}")
+        if st.session_state.equipos_parque:
+            st.markdown("---")
+            st.markdown("#### 📋 Listado de Equipos Cargados:")
+            df_parque = pd.DataFrame(st.session_state.equipos_parque)
+            st.dataframe(df_parque[["ubicacion_equipo", "tipo_equipo", "marca", "frigorias", "refrigerante"]], use_container_width=True)
 
     # ----------------------------------------------------
-    # VISTA 2: EJECUTAR MANTENIMIENTO PERIÓDICO
+    # VISTA 2: REGISTRAR MANTENIMIENTO
     # ----------------------------------------------------
-    elif modo_vista == "2. Ejecutar Mantenimiento Periódico":
-        st.markdown("### 🔧 Protocolo de Mantenimiento Periódico (Mensual)")
-        st.markdown("<p style='color: #64748b;'>Seleccione el equipo instalado al que le realizará el service este mes, complete el checklist y adjunte fotos si es necesario.</p>", unsafe_allow_html=True)
+    elif modo_vista == "2. Registrar Mantenimiento":
+        st.markdown("### 🔧 Protocolo de Mantenimiento Periódico")
+        st.markdown("<p style='color: #64748b;'>Seleccione un equipo de la lista cargada, complete el checklist, adjunte una foto opcional y guarde el service.</p>", unsafe_allow_html=True)
         
-        # Recuperar equipos existentes de la base de datos para esta dirección
-        equipos_disponibles = []
-        if supabase:
-            try:
-                res = supabase.table("equipos_hvac").select("*").eq("direccion_general", direccion).execute()
-                if res.data:
-                    equipos_disponibles = res.data
-            except Exception as e:
-                st.warning(f"Error al recuperar equipos: {e}")
-                
-        if not equipos_disponibles:
-            st.warning("⚠️ No se encontraron equipos fijos cargados para esta dirección. Vaya primero al módulo '1. Registrar Nuevos Equipos (Alta)'.")
+        if not st.session_state.equipos_parque:
+            st.warning("⚠️ No hay equipos cargados en esta sesión. Vaya primero al módulo '1. Cargar Parque de Equipos' para ingresarlos.")
         else:
-            # Crear un selector legible con la ubicación y marca de cada equipo
-            opciones_equipos = {f"{eq['ubicacion_equipo']} - {eq['tipo_equipo']} ({eq['marca']})": eq for eq in equipos_disponibles}
-            equipo_seleccionado_str = st.selectbox("Seleccione el Equipo a intervenir", list(opciones_equipos.keys()))
-            equipo_elegido = opciones_equipos[equipo_seleccionado_str]
+            opciones_equipos = {f"{eq['ubicacion_equipo']} - {eq['tipo_equipo']} ({eq['marca']})": eq for eq in st.session_state.equipos_parque}
+            equipo_sel_str = st.selectbox("Seleccione el Equipo a intervenir", list(opciones_equipos.keys()))
+            equipo_elegido = opciones_equipos[equipo_sel_str]
             
-            with st.form("form_mantenimiento_periodico"):
-                st.markdown(f"**Detalles del Equipo Seleccionado:** Ubicación: `{equipo_elegido['ubicacion_equipo']}` | Frigorías: `{equipo_elegido['frigorias']}` | Refrigerante: `{equipo_elegido['refrigerante']}`")
+            with st.form("form_mantenimiento"):
+                st.markdown(f"**Equipo seleccionado:** `{equipo_elegido['ubicacion_equipo']}` | Frigorías: `{equipo_elegido['frigorias']}` | Refrigerante: `{equipo_elegido['refrigerante']}`")
                 st.markdown("---")
                 
                 col_m1, col_m2 = st.columns(2)
@@ -239,118 +230,100 @@ else:
                     limpieza_evaporadora = st.checkbox("Limpieza de Evaporadora")
                     limpieza_condensadora = st.checkbox("Limpieza de Condensadora")
                     
-                observaciones = st.text_area("Observaciones Técnicas y Trabajos Realizados", placeholder="Detalle presiones de trabajo, estado eléctrico o recomendaciones...")
+                observaciones = st.text_area("Observaciones Técnicas y Trabajos Realizados", placeholder="Detalle presiones, estado eléctrico o recomendaciones...")
                 
                 imagen_mant = st.file_uploader("Adjuntar Fotografía del Service (Opcional)", type=["png", "jpg", "jpeg"])
                 
-                btn_guardar_mant = st.form_submit_button("💾 Guardar Mantenimiento Periódico")
+                btn_guardar_mant = st.form_submit_button("💾 Guardar Mantenimiento de este Equipo")
                 
                 if btn_guardar_mant:
-                    try:
-                        img_bytes = None
-                        if imagen_mant is not None:
-                            img_bytes = base64.b64encode(imagen_mant.read()).decode("utf-8")
+                    img_bytes = None
+                    if imagen_mant is not None:
+                        img_bytes = base64.b64encode(imagen_mant.read()).decode("utf-8")
+                        
+                    mantenimiento_item = {
+                        "cliente": cliente,
+                        "direccion_general": direccion,
+                        "tecnico": tecnico,
+                        "ubicacion_equipo": equipo_elegido['ubicacion_equipo'],
+                        "tipo_equipo": equipo_elegido['tipo_equipo'],
+                        "marca": equipo_elegido['marca'],
+                        "limpieza_filtros": limpieza_filtros,
+                        "drenajes_limpios": drenajes_limpios,
+                        "limpieza_evaporadora": limpieza_evaporadora,
+                        "limpieza_condensadora": limpieza_condensadora,
+                        "observaciones": observaciones,
+                        "tiene_imagen": True if img_bytes else False,
+                        "imagen_base64": img_bytes,
+                        "fecha_mantenimiento": str(datetime.now())
+                    }
+                    st.session_state.mantenimientos_sesion.append(mantenimiento_item)
+                    
+                    if supabase:
+                        try:
+                            supabase.table("mantenimientos_hvac").insert(mantenimiento_item).execute()
+                        except Exception as e:
+                            pass
                             
-                        if supabase:
-                            data_mantenimiento = {
-                                "cliente": cliente,
-                                "direccion_general": direccion,
-                                "tecnico": tecnico,
-                                "ubicacion_equipo": equipo_elegido['ubicacion_equipo'],
-                                "tipo_equipo": equipo_elegido['tipo_equipo'],
-                                "marca": equipo_elegido['marca'],
-                                "limpieza_filtros": limpieza_filtros,
-                                "drenajes_limpios": drenajes_limpios,
-                                "limpieza_evaporadora": limpieza_evaporadora,
-                                "limpieza_condensadora": limpieza_condensadora,
-                                "observaciones": observaciones,
-                                "tiene_imagen": True if img_bytes else False,
-                                "imagen_base64": img_bytes,
-                                "fecha_mantenimiento": str(datetime.now())
-                            }
-                            supabase.table("mantenimientos_hvac").insert(data_mantenimiento).execute()
-                            st.success(f"✅ ¡Mantenimiento periódico guardado con éxito para el equipo en '{equipo_elegido['ubicacion_equipo']}'!")
-                        else:
-                            st.success("✅ ¡Mantenimiento registrado con éxito (Modo local)!")
-                    except Exception as e:
-                        st.error(f"Error al guardar el mantenimiento: {e}")
+                    st.success(f"✅ ¡Mantenimiento registrado con éxito para '{equipo_elegido['ubicacion_equipo']}'! (Total mantenimientos hechos: {len(st.session_state.mantenimientos_sesion)})")
 
     # ----------------------------------------------------
-    # VISTA 3: HISTORIAL Y BASE DE DATOS
+    # VISTA 3: HISTORIAL / BASE DE DATOS
     # ----------------------------------------------------
-    elif modo_vista == "3. Historial y Base de Datos":
-        st.markdown("### 📊 Historial de Mantenimientos y Equipos")
-        tab_h1, tab_h2 = st.tabs(["Parque de Equipos (Fijos)", "Historial de Mantenimientos"])
+    elif modo_vista == "3. Historial / Base de Datos":
+        st.markdown("### 📊 Historial de Registros en Sesión")
+        tab_h1, tab_h2 = st.tabs(["Parque de Equipos", "Mantenimientos Realizados"])
         
         with tab_h1:
-            if supabase:
-                try:
-                    res = supabase.table("equipos_hvac").select("*").execute()
-                    if res.data:
-                        st.dataframe(pd.DataFrame(res.data), use_container_width=True)
-                    else:
-                        st.info("No hay equipos registrados.")
-                except Exception as e:
-                    st.warning(f"Error: {e}")
-                    
+            if st.session_state.equipos_parque:
+                st.dataframe(pd.DataFrame(st.session_state.equipos_parque), use_container_width=True)
+            else:
+                st.info("No hay equipos cargados en esta sesión.")
+                
         with tab_h2:
-            if supabase:
-                try:
-                    res = supabase.table("mantenimientos_hvac").select("*").execute()
-                    if res.data:
-                        st.dataframe(pd.DataFrame(res.data), use_container_width=True)
-                    else:
-                        st.info("No hay registros de mantenimiento previos.")
-                except Exception as e:
-                    st.warning(f"Error: {e}")
+            if st.session_state.mantenimientos_sesion:
+                st.dataframe(pd.DataFrame(st.session_state.mantenimientos_sesion), use_container_width=True)
+            else:
+                st.info("No hay mantenimientos registrados en esta sesión.")
 
     # ----------------------------------------------------
     # VISTA 4: GENERAR REPORTE PDF
     # ----------------------------------------------------
-    elif modo_vista == "4. Generar Reporte PDF del Servicio":
+    elif modo_vista == "4. Generar Reporte PDF":
         st.markdown("### 📄 Generación de Informe Técnico en PDF")
-        st.info("Exporte el reporte consolidado con los mantenimientos realizados en la visita actual para esta dirección.")
+        st.info("Exporte el informe consolidado con los mantenimientos realizados al finalizar el recorrido.")
         
-        if supabase:
-            try:
-                res_maint = supabase.table("mantenimientos_hvac").select("*").eq("direccion_general", direccion).execute()
-                mantenimientos_actuales = res_maint.data if res_maint.data else []
+        if st.session_state.mantenimientos_sesion:
+            if st.button("📥 Generar y Descargar Reporte PDF Completo"):
+                buffer = io.BytesIO()
+                doc = SimpleDocTemplate(buffer, pagesize=letter)
+                elements = []
+                styles = getSampleStyleSheet()
                 
-                if mantenimientos_actuales:
-                    st.markdown(f"Se encontraron **{len(mantenimientos_actuales)}** registros de mantenimiento para esta dirección.")
+                elements.append(Paragraph("ANN Multiservicios - Informe Técnico de Mantenimiento HVAC", styles['Heading1']))
+                elements.append(Spacer(1, 10))
+                elements.append(Paragraph(f"<b>Cliente:</b> {cliente}", styles['Normal']))
+                elements.append(Paragraph(f"<b>Dirección General:</b> {direccion}", styles['Normal']))
+                elements.append(Paragraph(f"<b>Técnico Responsable:</b> {tecnico}", styles['Normal']))
+                elements.append(Paragraph(f"<b>Fecha de Emisión:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
+                elements.append(Spacer(1, 15))
+                
+                for idx, m in enumerate(st.session_state.mantenimientos_sesion, 1):
+                    elements.append(Paragraph(f"<b>Service #{idx}: {m['ubicacion_equipo']}</b>", styles['Heading3']))
+                    elements.append(Paragraph(f"• Equipo: {m['tipo_equipo']} - Marca: {m['marca']}", styles['Normal']))
+                    elements.append(Paragraph(f"• Filtros: {'Sí' if m['limpieza_filtros'] else 'No'} | Drenajes: {'Sí' if m['drenajes_limpios'] else 'No'} | Evaporadora: {'Sí' if m['limpieza_evaporadora'] else 'No'} | Condensadora: {'Sí' if m['limpieza_condensadora'] else 'No'}", styles['Normal']))
+                    if m['observaciones']:
+                        elements.append(Paragraph(f"• Observaciones: {m['observaciones']}", styles['Normal']))
+                    elements.append(Spacer(1, 10))
                     
-                    if st.button("📥 Generar y Descargar Reporte PDF Completo"):
-                        buffer = io.BytesIO()
-                        doc = SimpleDocTemplate(buffer, pagesize=letter)
-                        elements = []
-                        styles = getSampleStyleSheet()
-                        
-                        elements.append(Paragraph("ANN Multiservicios - Informe Técnico de Mantenimiento HVAC", styles['Heading1']))
-                        elements.append(Spacer(1, 10))
-                        elements.append(Paragraph(f"<b>Cliente:</b> {cliente}", styles['Normal']))
-                        elements.append(Paragraph(f"<b>Dirección General:</b> {direccion}", styles['Normal']))
-                        elements.append(Paragraph(f"<b>Técnico Responsable:</b> {tecnico}", styles['Normal']))
-                        elements.append(Paragraph(f"<b>Fecha de Emisión:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
-                        elements.append(Spacer(1, 15))
-                        
-                        for idx, m in enumerate(mantenimientos_actuales, 1):
-                            elements.append(Paragraph(f"<b>Service #{idx}: {m['ubicacion_equipo']}</b>", styles['Heading3']))
-                            elements.append(Paragraph(f"• Equipo: {m['tipo_equipo']} - Marca: {m['marca']}", styles['Normal']))
-                            elements.append(Paragraph(f"• Filtros: {'Sí' if m['limpieza_filtros'] else 'No'} | Drenajes: {'Sí' if m['drenajes_limpios'] else 'No'} | Evaporadora: {'Sí' if m['limpieza_evaporadora'] else 'No'} | Condensadora: {'Sí' if m['limpieza_condensadora'] else 'No'}", styles['Normal']))
-                            if m['observaciones']:
-                                elements.append(Paragraph(f"• Observaciones: {m['observaciones']}", styles['Normal']))
-                            elements.append(Spacer(1, 10))
-                            
-                        doc.build(elements)
-                        buffer.seek(0)
-                        
-                        st.download_button(
-                            label="⬇️ Descargar PDF Generado",
-                            data=buffer,
-                            file_name=f"Informe_Mantenimiento_{cliente.replace(' ', '_')}.pdf",
-                            mime="application/pdf"
-                        )
-                else:
-                    st.warning("⚠️ No hay mantenimientos registrados para generar el reporte en esta dirección.")
-            except Exception as e:
-                st.error(f"Error al generar el PDF: {e}")
+                doc.build(elements)
+                buffer.seek(0)
+                
+                st.download_button(
+                    label="⬇️ Descargar PDF Generado",
+                    data=buffer,
+                    file_name=f"Informe_Mantenimiento_{cliente.replace(' ', '_')}.pdf",
+                    mime="application/pdf"
+                )
+        else:
+            st.warning("⚠️ No hay mantenimientos registrados en la sesión actual para generar el PDF.")
